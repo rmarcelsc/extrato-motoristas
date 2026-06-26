@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gerador de Extratos — Motoristas Agregados</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #F5F6FA; color: #1a1a2e; min-height: 100vh; }
+
+  /* ── Header ── */
+  .app-header {
+    background: #1a1a2e;
+    color: #fff;
+    padding: 1.25rem 2rem;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 3px solid #e63946;
+  }
+  .app-header h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: 0.03em; }
+  .app-header span { font-size: 0.78rem; color: #aaa; }
+
+  /* ── Steps ── */
+  .steps { display: flex; gap: 0; border-bottom: 1px solid #e2e4ea; background: #fff; }
+  .step-btn {
+    flex: 1; padding: 0.9rem 1rem; border: none; background: transparent;
+    font-size: 0.85rem; font-weight: 500; color: #888; cursor: pointer;
+    border-bottom: 3px solid transparent; transition: all 0.2s;
+  }
+  .step-btn.active { color: #e63946; border-bottom-color: #e63946; }
+  .step-btn .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 50%; background: #eee;
+    font-size: 0.72rem; font-weight: 700; margin-right: 6px; color: #666;
+  }
+  .step-btn.active .num { background: #e63946; color: #fff; }
+
+  /* ── Panels ── */
+  .panel { display: none; padding: 2rem; max-width: 960px; margin: 0 auto; }
+  .panel.active { display: block; }
+
+  /* ── Upload ── */
+  .upload-zone {
+    border: 2px dashed #c8cad4; border-radius: 12px; background: #fff;
+    padding: 3rem 2rem; text-align: center; cursor: pointer; transition: border-color 0.2s;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: #e63946; background: #fff5f5; }
+  .upload-icon { font-size: 3rem; color: #bbb; margin-bottom: 1rem; }
+  .upload-zone h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
+  .upload-zone p { font-size: 0.83rem; color: #888; }
+  #file-input { display: none; }
+
+  .file-ok {
+    background: #f0faf4; border: 2px solid #2ecc71; border-radius: 12px;
+    padding: 1.5rem 2rem; display: flex; align-items: center; gap: 1rem; margin-top: 1rem;
+  }
+  .file-ok .icon { font-size: 2rem; color: #2ecc71; }
+  .file-ok .info h4 { font-size: 0.9rem; font-weight: 600; }
+  .file-ok .info p { font-size: 0.8rem; color: #555; margin-top: 2px; }
+
+  /* ── Summary cards ── */
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 1.5rem 0; }
+  .metric-card { background: #fff; border-radius: 10px; padding: 1rem 1.25rem; border: 0.5px solid #e2e4ea; }
+  .metric-card .label { font-size: 0.75rem; color: #888; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .metric-card .value { font-size: 1.5rem; font-weight: 700; color: #1a1a2e; }
+  .metric-card .sub { font-size: 0.72rem; color: #aaa; margin-top: 2px; }
+
+  /* ── Driver list ── */
+  .section-title { font-size: 0.9rem; font-weight: 600; color: #555; margin: 1.5rem 0 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  .driver-list { display: grid; gap: 8px; }
+  .driver-card {
+    background: #fff; border-radius: 10px; border: 0.5px solid #e2e4ea;
+    padding: 0.9rem 1.25rem; display: flex; align-items: center; gap: 1rem;
+    cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .driver-card:hover { border-color: #e63946; box-shadow: 0 2px 8px rgba(230,57,70,0.08); }
+  .driver-card.selected { border-color: #e63946; background: #fff5f5; }
+  .driver-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: #1a1a2e; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
+  }
+  .driver-name { font-size: 0.9rem; font-weight: 600; }
+  .driver-meta { font-size: 0.78rem; color: #888; margin-top: 2px; }
+  .driver-total { margin-left: auto; text-align: right; }
+  .driver-total .amt { font-size: 1rem; font-weight: 700; color: #e63946; }
+  .driver-total .trips { font-size: 0.75rem; color: #aaa; margin-top: 2px; }
+  .driver-check { width: 18px; height: 18px; border: 2px solid #ddd; border-radius: 4px; flex-shrink: 0; transition: all 0.2s; }
+  .driver-card.selected .driver-check { background: #e63946; border-color: #e63946; position: relative; }
+  .driver-card.selected .driver-check::after { content: '✓'; color: #fff; font-size: 11px; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+
+  /* ── Buttons ── */
+  .btn-row { display: flex; gap: 10px; margin-top: 1.5rem; flex-wrap: wrap; }
+  .btn {
+    padding: 0.65rem 1.25rem; border-radius: 8px; font-size: 0.87rem; font-weight: 600;
+    cursor: pointer; border: none; transition: opacity 0.2s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary { background: #e63946; color: #fff; }
+  .btn-secondary { background: #1a1a2e; color: #fff; }
+  .btn-outline { background: #fff; color: #1a1a2e; border: 1px solid #ddd; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Period filter ── */
+  .filter-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1rem; }
+  .filter-row label { font-size: 0.8rem; color: #666; display: block; margin-bottom: 4px; }
+  .filter-row input { padding: 0.5rem 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 0.85rem; }
+
+  /* ── Preview / Print ── */
+  #preview-area { background: #fff; border-radius: 12px; border: 0.5px solid #e2e4ea; padding: 0; overflow: hidden; }
+
+  /* ── Extrato (print-ready) ── */
+  .extrato-page {
+    padding: 2.5rem 3rem;
+    border-bottom: 4px solid #e63946;
+    margin-bottom: 2px;
+    page-break-after: always;
+  }
+  .extrato-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; }
+  .extrato-logo { font-size: 1.6rem; font-weight: 800; color: #1a1a2e; letter-spacing: -0.02em; }
+  .extrato-logo span { color: #e63946; }
+  .extrato-doc-info { text-align: right; }
+  .extrato-doc-info .doc-label { font-size: 0.7rem; color: #aaa; text-transform: uppercase; letter-spacing: 0.08em; }
+  .extrato-doc-info .doc-value { font-size: 0.85rem; font-weight: 600; color: #333; }
+
+  .extrato-divider { height: 2px; background: linear-gradient(90deg, #e63946, #1a1a2e); border-radius: 2px; margin: 0.75rem 0 1.5rem; }
+
+  .extrato-motorista { margin-bottom: 1.5rem; }
+  .extrato-motorista-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: #aaa; margin-bottom: 4px; }
+  .extrato-motorista-nome { font-size: 1.3rem; font-weight: 800; color: #1a1a2e; }
+  .extrato-motorista-periodo { font-size: 0.82rem; color: #666; margin-top: 3px; }
+
+  .extrato-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin: 1rem 0; }
+  .extrato-table th {
+    background: #1a1a2e; color: #fff; padding: 0.5rem 0.6rem;
+    text-align: left; font-size: 0.7rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .extrato-table td { padding: 0.5rem 0.6rem; border-bottom: 0.5px solid #eee; vertical-align: middle; }
+  .extrato-table tr:nth-child(even) td { background: #fafafa; }
+  .extrato-table tr:hover td { background: #fff5f5; }
+  .extrato-table td.num, .extrato-table th.num { text-align: right; }
+  .extrato-table td.highlight { color: #e63946; font-weight: 700; }
+
+  .extrato-totais { margin-top: 1.5rem; display: flex; justify-content: flex-end; }
+  .totais-box { background: #1a1a2e; color: #fff; border-radius: 10px; padding: 1rem 1.5rem; min-width: 280px; }
+  .totais-row { display: flex; justify-content: space-between; font-size: 0.82rem; padding: 3px 0; color: #aaa; }
+  .totais-row.total-final { font-size: 1.1rem; font-weight: 800; color: #fff; border-top: 1px solid #333; margin-top: 8px; padding-top: 10px; }
+  .totais-row.total-final span:last-child { color: #e63946; }
+
+  .extrato-nf-box {
+    border: 1.5px dashed #e63946; border-radius: 10px; padding: 1rem 1.25rem;
+    margin-top: 1.5rem; background: #fff5f5;
+  }
+  .extrato-nf-box .nf-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #e63946; margin-bottom: 8px; }
+  .extrato-nf-box p { font-size: 0.8rem; color: #555; line-height: 1.6; }
+  .extrato-nf-box strong { color: #1a1a2e; }
+
+
+  .no-print { }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: 2rem; right: 2rem;
+    background: #1a1a2e; color: #fff; border-radius: 10px;
+    padding: 0.75rem 1.25rem; font-size: 0.85rem; font-weight: 500;
+    opacity: 0; transform: translateY(20px); transition: all 0.3s;
+    z-index: 999; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  @media print {
+    body { background: white; }
+    .app-header, .steps, .btn-row, .toast { display: none !important; }
+    .panel { display: none !important; padding: 0; }
+    #panel-3 { display: block !important; padding: 0; max-width: 100%; }
+    #preview-area { border: none !important; }
+    .extrato-page { page-break-after: always; border: none; padding: 1.5rem; }
+    .extrato-table { table-layout: fixed; width: 100%; font-size: 0.66rem; }
+    .extrato-table th, .extrato-table td { padding: 0.3rem 0.25rem; overflow: hidden; white-space: nowrap; }
+    .extrato-table th:nth-child(1), .extrato-table td:nth-child(1) { width: 7%; }
+    .extrato-table th:nth-child(2), .extrato-table td:nth-child(2) { width: 22%; }
+    .extrato-table th:nth-child(3), .extrato-table td:nth-child(3) { width: 8%; }
+    .extrato-table th:nth-child(4), .extrato-table td:nth-child(4) { width: 6%; }
+    .extrato-table th:nth-child(5), .extrato-table td:nth-child(5) { width: 9%; }
+    .extrato-table th:nth-child(6), .extrato-table td:nth-child(6) { width: 10%; }
+    .extrato-table th:nth-child(7), .extrato-table td:nth-child(7) { width: 12%; }
+    .extrato-table th:nth-child(8), .extrato-table td:nth-child(8) { width: 10%; }
+    .extrato-table th:nth-child(9), .extrato-table td:nth-child(9) { width: 8%; }
+    .extrato-table th:nth-child(10), .extrato-table td:nth-child(10) { width: 8%; }
+  }
+</style>
+</head>
+<body>
+
+<div>
+<div class="app-header">
+  <h1>&#9881; Gerador de Extratos — Motoristas Agregados</h1>
+  <span>WESSEL · Sistema de Apuração TOTVS</span>
+</div>
+
+<div class="steps">
+  <button class="step-btn active" onclick="goStep(1)" id="step-btn-1"><span class="num">1</span> Importar Relatório</button>
+  <button class="step-btn" onclick="goStep(2)" id="step-btn-2"><span class="num">2</span> Selecionar Motoristas</button>
+  <button class="step-btn" onclick="goStep(3)" id="step-btn-3"><span class="num">3</span> Gerar Extratos</button>
+</div>
+
+<!-- STEP 1 -->
+<div class="panel active" id="panel-1">
+  <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()" ondragover="onDrag(event,true)" ondragleave="onDrag(event,false)" ondrop="onDrop(event)">
+    <div class="upload-icon">&#128196;</div>
+    <h3>Arraste o arquivo ou clique para selecionar</h3>
+    <p>Relatório exportado do TOTVS — formato <strong>.xls (SpreadsheetML)</strong></p>
+    <p style="margin-top:6px; font-size:0.75rem; color:#bbb;">O arquivo fica apenas no seu navegador — nenhum dado é enviado a servidores externos.</p>
+  </div>
+  <input type="file" id="file-input" accept=".xls,.xlsx,.xml" onchange="handleFile(this.files[0])">
+  <div id="file-status"></div>
+  <div class="btn-row" style="margin-top:1rem;">
+    <button class="btn btn-primary" onclick="goStep(2)" id="btn-next-1" disabled>Próximo: Selecionar Motoristas →</button>
+    <button class="btn btn-outline" onclick="clearAll()" id="btn-clear" style="display:none; color:#c0392b; border-color:#c0392b;">&#128465; Limpar e recomeçar</button>
+  </div>
+</div>
+
+<!-- STEP 2 -->
+<div class="panel" id="panel-2">
+  <div class="filter-row">
+    <div>
+      <label>Período início</label>
+      <input type="date" id="filt-start" onchange="renderDriverList()">
+    </div>
+    <div>
+      <label>Período fim</label>
+      <input type="date" id="filt-end" onchange="renderDriverList()">
+    </div>
+    <button class="btn btn-outline" onclick="clearFilters()">Limpar filtros</button>
+    <button class="btn btn-outline" onclick="selectAll()">Selecionar todos</button>
+  </div>
+  <div class="summary-grid" id="summary-cards"></div>
+  <div class="section-title">Motoristas no período</div>
+  <div class="driver-list" id="driver-list"></div>
+  <div class="btn-row">
+    <button class="btn btn-outline" onclick="goStep(1)">← Voltar</button>
+    <button class="btn btn-primary" onclick="goStep(3)" id="btn-next-2">Gerar Extratos Selecionados →</button>
+  </div>
+</div>
+
+<!-- STEP 3 -->
+<div class="panel" id="panel-3">
+  <div class="btn-row" style="margin-bottom:1rem;">
+    <button class="btn btn-outline" onclick="goStep(2)">← Voltar</button>
+    <button class="btn btn-secondary" onclick="printAll()">&#128438; Imprimir / Salvar PDF</button>
+    <button class="btn btn-outline" onclick="copyInfo()">&#128203; Resumo para copiar</button>
+  </div>
+  <div id="preview-area"></div>
+</div>
+</div><!-- /no-print -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+let allData = [];
+let selectedDrivers = new Set();
+let reportPeriod = '';
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function goStep(n) {
+  if (n === 2 && allData.length === 0) { showToast('Importe o relatório primeiro.'); return; }
+  if (n === 3 && selectedDrivers.size === 0) { showToast('Selecione ao menos um motorista.'); return; }
+  [1,2,3].forEach(i => {
+    document.getElementById('panel-' + i).classList.toggle('active', i === n);
+    document.getElementById('step-btn-' + i).classList.toggle('active', i === n);
+  });
+  if (n === 2) { renderDriverList(); }
+  if (n === 3) { renderExtratos(); }
+}
+
+function onDrag(e, over) { e.preventDefault(); document.getElementById('drop-zone').classList.toggle('drag', over); }
+function onDrop(e) { e.preventDefault(); onDrag(e, false); handleFile(e.dataTransfer.files[0]); }
+
+function handleFile(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const text = ev.target.result;
+    if (text.includes('mso-application') || text.includes('Workbook') || text.startsWith('<?xml')) {
+      parseSpreadsheetML(text, file.name);
+    } else {
+      showStatus('error', 'Formato não reconhecido. Use o arquivo .xls exportado pelo TOTVS.');
+    }
+  };
+  reader.readAsText(file, 'latin1');
+}
+
+function parseSpreadsheetML(xml, filename) {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xml, 'application/xml');
+    const ns = 'urn:schemas-microsoft-com:office:spreadsheet';
+
+    const worksheets = doc.getElementsByTagNameNS(ns, 'Worksheet');
+    let paySheet = null;
+    let title = '';
+
+    for (let ws of worksheets) {
+      const name = ws.getAttributeNS(ns, 'Name') || '';
+      if (name.toLowerCase().includes('pagamento') || name.toLowerCase().includes('pag')) {
+        paySheet = ws; break;
+      }
+    }
+    if (!paySheet) paySheet = worksheets[0];
+
+    const rows = paySheet.getElementsByTagNameNS(ns, 'Row');
+    const result = [];
+
+    // Row 0 = title, Row 1 = headers, Row 2+ = data
+    if (rows[0]) {
+      const cells = rows[0].getElementsByTagNameNS(ns, 'Cell');
+      if (cells[0]) {
+        const d = cells[0].getElementsByTagNameNS(ns, 'Data');
+        if (d[0]) title = d[0].textContent;
+      }
+    }
+
+    for (let i = 2; i < rows.length; i++) {
+      const cells = rows[i].getElementsByTagNameNS(ns, 'Cell');
+      const get = idx => {
+        if (cells[idx]) {
+          const d = cells[idx].getElementsByTagNameNS(ns, 'Data');
+          return d[0] ? d[0].textContent.trim() : '';
+        }
+        return '';
+      };
+
+      const dataConclui = get(0);
+      if (!dataConclui) continue;
+
+      // Parse date
+      let dt = null;
+      if (dataConclui.includes('T')) dt = new Date(dataConclui);
+      else dt = new Date(dataConclui);
+
+      const row = {
+        data: dt,
+        dataStr: dt ? dt.toLocaleDateString('pt-BR') : dataConclui,
+        rota: get(1),
+        descRota: get(2),
+        idMotorista: get(3),
+        placa: get(4),
+        motorista: get(5),
+        kmFinal: parseFloat(get(6)) || 0,
+        kmInicial: parseFloat(get(7)) || 0,
+        kmPercorrida: parseFloat(get(8)) || 0,
+        franquia: parseFloat(get(9)) || 0,
+        baseKmSP: parseFloat(get(10)) || 0,
+        kmExecSP: parseFloat(get(11)) || 0,
+        rExecSP: parseFloat(get(12)) || 0,
+        baseKmInt: parseFloat(get(13)) || 0,
+        kmExecInt: parseFloat(get(14)) || 0,
+        rExecInt: parseFloat(get(15)) || 0,
+        rTotalSKm: parseFloat(get(16)) || 0,
+        retWessel: parseFloat(get(17)) || 0,
+        valorAdicE: parseFloat(get(18)) || 0,
+        valorPedEx: parseFloat(get(19)) || 0,
+        pagarR: parseFloat(get(20)) || 0,
+      };
+
+      // Extract period from title if present
+      if (!reportPeriod && title) {
+        const m = title.match(/(\d{2}\/\d{2}\/\d{4})\s+at[eé]\s+(\d{2}\/\d{2}\/\d{4})/i);
+        if (m) reportPeriod = m[1] + ' a ' + m[2];
+      }
+
+      if (row.motorista) result.push(row);
+    }
+
+    allData = result;
+
+    // Auto-set filters from data
+    const dates = result.map(r => r.data).filter(Boolean).sort((a,b) => a-b);
+    if (dates.length) {
+      const toISO = d => d.toISOString().split('T')[0];
+      document.getElementById('filt-start').value = toISO(dates[0]);
+      document.getElementById('filt-end').value = toISO(dates[dates.length-1]);
+    }
+
+    showStatus('ok', filename, result.length, reportPeriod || title);
+    document.getElementById('btn-next-1').disabled = false;
+    showToast(`✓ ${result.length} registros carregados!`);
+    document.getElementById('btn-clear').style.display = 'inline-block';
+  } catch(e) {
+    showStatus('error', 'Erro ao processar o arquivo: ' + e.message);
+  }
+}
+
+function showStatus(type, filename, count, period) {
+  const el = document.getElementById('file-status');
+  if (type === 'ok') {
+    el.innerHTML = `<div class="file-ok">
+      <div class="icon">✅</div>
+      <div class="info">
+        <h4>${filename}</h4>
+        <p>${count} viagens importadas · ${period || 'período identificado no arquivo'}</p>
+      </div>
+    </div>`;
+  } else {
+    el.innerHTML = `<div class="file-ok" style="background:#fff0f0;border-color:#e63946;">
+      <div class="icon">⚠️</div>
+      <div class="info"><h4>Erro</h4><p>${filename}</p></div>
+    </div>`;
+  }
+}
+
+function filteredData() {
+  const s = document.getElementById('filt-start').value;
+  const e = document.getElementById('filt-end').value;
+  return allData.filter(r => {
+    if (!r.data) return true;
+    const d = r.data.toISOString().split('T')[0];
+    if (s && d < s) return false;
+    if (e && d > e) return false;
+    return true;
+  });
+}
+
+function groupByDriver(data) {
+  const map = {};
+  data.forEach(r => {
+    const key = r.idMotorista + '|' + r.motorista;
+    if (!map[key]) map[key] = { id: r.idMotorista, name: r.motorista, rows: [] };
+    map[key].rows.push(r);
+  });
+  return Object.values(map).sort((a,b) => a.name.localeCompare(b.name));
+}
+
+function renderDriverList() {
+  const data = filteredData();
+  const drivers = groupByDriver(data);
+
+  // Summary cards
+  const totalPagar = data.reduce((s,r) => s + r.pagarR, 0);
+  const totalViagens = data.length;
+  document.getElementById('summary-cards').innerHTML = `
+    <div class="metric-card"><div class="label">Total a Pagar</div><div class="value">R$ ${totalPagar.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><div class="sub">no período filtrado</div></div>
+    <div class="metric-card"><div class="label">Motoristas</div><div class="value">${drivers.length}</div><div class="sub">com viagens</div></div>
+    <div class="metric-card"><div class="label">Total Viagens</div><div class="value">${totalViagens}</div><div class="sub">registros</div></div>
+    <div class="metric-card"><div class="label">Média por Motorista</div><div class="value">R$ ${drivers.length ? (totalPagar/drivers.length).toLocaleString('pt-BR',{minimumFractionDigits:2}) : '0'}</div><div class="sub">no período</div></div>
+  `;
+
+  const list = document.getElementById('driver-list');
+  list.innerHTML = drivers.map(d => {
+    const total = d.rows.reduce((s,r) => s + r.pagarR, 0);
+    const initials = d.name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+    const sel = selectedDrivers.has(d.id);
+    return `<div class="driver-card ${sel?'selected':''}" onclick="toggleDriver('${d.id}')">
+      <div class="driver-avatar">${initials}</div>
+      <div>
+        <div class="driver-name">${d.name}</div>
+        <div class="driver-meta">ID ${d.id} · ${d.rows.length} viagem(s)</div>
+      </div>
+      <div class="driver-total">
+        <div class="amt">R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+        <div class="trips">${d.rows.length} viagens</div>
+      </div>
+      <div class="driver-check" style="position:relative;"></div>
+    </div>`;
+  }).join('');
+}
+
+function toggleDriver(id) {
+  if (selectedDrivers.has(id)) selectedDrivers.delete(id);
+  else selectedDrivers.add(id);
+  renderDriverList();
+  document.getElementById('btn-next-2').textContent = `Gerar ${selectedDrivers.size} Extrato(s) →`;
+}
+
+function selectAll() {
+  const data = filteredData();
+  const drivers = groupByDriver(data);
+  drivers.forEach(d => selectedDrivers.add(d.id));
+  renderDriverList();
+  document.getElementById('btn-next-2').textContent = `Gerar ${selectedDrivers.size} Extrato(s) →`;
+}
+
+function clearFilters() {
+  document.getElementById('filt-start').value = '';
+  document.getElementById('filt-end').value = '';
+  renderDriverList();
+}
+
+function renderExtratos() {
+  const data = filteredData();
+  const drivers = groupByDriver(data).filter(d => selectedDrivers.has(d.id));
+
+  const s = document.getElementById('filt-start').value;
+  const e = document.getElementById('filt-end').value;
+  const periodoFmt = s && e
+    ? new Date(s+'T12:00').toLocaleDateString('pt-BR') + ' a ' + new Date(e+'T12:00').toLocaleDateString('pt-BR')
+    : reportPeriod || 'Conforme relatório TOTVS';
+
+  const today = new Date().toLocaleDateString('pt-BR');
+  const docNum = 'EXT-' + Date.now().toString().slice(-6);
+
+  const html = drivers.map(d => {
+    const rows = d.rows;
+    const totalFranquia = rows.reduce((s,r) => s+r.franquia, 0);
+    const totalKmExcedSP = rows.reduce((s,r) => s+r.rExecSP, 0);
+    const totalKmExcedInt = rows.reduce((s,r) => s+r.rExecInt, 0);
+    const totalRetWessel = rows.reduce((s,r) => s+r.retWessel, 0);
+    const totalAdicE = rows.reduce((s,r) => s+r.valorAdicE, 0);
+    const totalPedEx = rows.reduce((s,r) => s+r.valorPedEx, 0);
+    const totalPagar = rows.reduce((s,r) => s+r.pagarR, 0);
+    const totalKm = rows.reduce((s,r) => s+r.kmPercorrida, 0);
+
+    const placas = [...new Set(rows.map(r=>r.placa).filter(Boolean))].join(', ') || '—';
+
+    const tableRows = rows.map(r => `
+      <tr>
+        <td>${r.dataStr}</td>
+        <td>${r.descRota || r.rota}</td>
+        <td>${r.placa || '—'}</td>
+        <td class="num">${r.kmPercorrida.toLocaleString('pt-BR')}</td>
+        <td class="num">${r.franquia.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
+        <td class="num">${(r.rExecSP + r.rExecInt).toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
+        <td class="num">${r.retWessel !== 0 ? r.retWessel.toLocaleString('pt-BR',{minimumFractionDigits:2}) : '—'}</td>
+        <td class="num">${r.valorAdicE !== 0 ? r.valorAdicE.toLocaleString('pt-BR',{minimumFractionDigits:2}) : '—'}</td>
+        <td class="num">${r.valorPedEx !== 0 ? r.valorPedEx.toLocaleString('pt-BR',{minimumFractionDigits:2}) : '—'}</td>
+        <td class="num highlight">R$ ${r.pagarR.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
+      </tr>`).join('');
+
+    return `<div class="extrato-page">
+      <div class="extrato-header">
+        <div>
+          <div class="extrato-logo">WESSEL<span>.</span></div>
+          <div style="font-size:0.75rem;color:#888;margin-top:4px;">ARACARIGUAMA · SP</div>
+        </div>
+        <div class="extrato-doc-info">
+          <div class="doc-label">Extrato de Pagamento</div>
+          <div class="doc-value">${docNum}-${d.id}</div>
+          <div style="font-size:0.72rem;color:#aaa;margin-top:4px;">Emitido em ${today}</div>
+        </div>
+      </div>
+
+      <div class="extrato-divider"></div>
+
+      <div class="extrato-motorista">
+        <div class="extrato-motorista-label">Motorista Agregado</div>
+        <div class="extrato-motorista-nome">${d.name}</div>
+        <div class="extrato-motorista-periodo">ID ${d.id} &nbsp;·&nbsp; Placa(s): ${placas} &nbsp;·&nbsp; Período: ${periodoFmt}</div>
+      </div>
+
+      <table class="extrato-table">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Rota / Planejamento</th>
+            <th>Placa</th>
+            <th class="num">KM</th>
+            <th class="num">Franquia</th>
+            <th class="num">KM Excedente</th>
+            <th class="num">Taxa Retorno WEW</th>
+            <th class="num">Taxas Adicionais</th>
+            <th class="num">Extra Pedágio</th>
+            <th class="num">Total</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+
+      <div class="extrato-totais">
+        <div class="totais-box">
+          <div class="totais-row"><span>Franquia total:</span><span>R$ ${totalFranquia.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
+          <div class="totais-row"><span>KM Exec. SP:</span><span>R$ ${totalKmExcedSP.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
+          <div class="totais-row"><span>KM Exec. Interior:</span><span>R$ ${totalKmExcedInt.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
+          ${totalRetWessel !== 0 ? `<div class="totais-row"><span>Ret. Wessel:</span><span>R$ ${totalRetWessel.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>` : ''}
+          ${totalAdicE !== 0 ? `<div class="totais-row"><span>Adicional Entrega:</span><span>R$ ${totalAdicE.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>` : ''}
+          ${totalPedEx !== 0 ? `<div class="totais-row"><span>Pedágio Excedente:</span><span>R$ ${totalPedEx.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>` : ''}
+          <div class="totais-row" style="color:#aaa;font-size:0.75rem;"><span>Total KM percorrida:</span><span>${totalKm.toLocaleString('pt-BR')} km</span></div>
+          <div class="totais-row total-final"><span>TOTAL A PAGAR:</span><span>R$ ${totalPagar.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span></div>
+        </div>
+      </div>
+
+      <div class="extrato-nf-box">
+        <div class="nf-title">&#128196; Instruções para Emissão de Nota Fiscal</div>
+        <p>
+          Favor emitir Nota Fiscal de Serviços no valor de <strong>R$ ${totalPagar.toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong>
+          referente ao transporte realizado no período de <strong>${periodoFmt}</strong>.<br><br>
+          <strong>Tomador:</strong> Wessel Aracariguama &nbsp;·&nbsp; <strong>CNPJ:</strong> (inserir CNPJ)<br>
+          <strong>Descrição do serviço:</strong> Serviços de transporte — motorista agregado<br>
+          <strong>Referência:</strong> Extrato ${docNum}-${d.id}
+        </p>
+      </div>
+
+
+    </div>`;
+  }).join('');
+
+  document.getElementById('preview-area').innerHTML = html;
+}
+
+function clearAll() {
+  allData = [];
+  selectedDrivers = new Set();
+  reportPeriod = '';
+  document.getElementById('file-input').value = '';
+  document.getElementById('file-status').innerHTML = '';
+  document.getElementById('preview-area').innerHTML = '';
+  document.getElementById('btn-next-1').disabled = true;
+  document.getElementById('btn-clear').style.display = 'none';
+  document.getElementById('drop-zone').style.opacity = '1';
+  goStep(1);
+  showToast('Dados apagados. Importe um novo arquivo.');
+}
+
+function printAll() {
+  window.print();
+}
+
+function copyInfo() {
+  const data = filteredData();
+  const drivers = groupByDriver(data).filter(d => selectedDrivers.has(d.id));
+  const lines = drivers.map(d => {
+    const total = d.rows.reduce((s,r) => s+r.pagarR, 0);
+    return `${d.name}: R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})} (${d.rows.length} viagens)`;
+  });
+  const text = 'RESUMO PAGAMENTOS MOTORISTAS\n' + lines.join('\n') + '\n\nTOTAL: R$ ' +
+    drivers.reduce((s,d) => s + d.rows.reduce((ss,r) => ss+r.pagarR,0), 0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  navigator.clipboard.writeText(text).then(() => showToast('Resumo copiado! ✓'));
+}
+</script>
+</body>
+</html>
